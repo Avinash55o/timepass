@@ -83,18 +83,23 @@ export async function initiateRentPayment(
 
     // Calculate late fee based on grace period and whether it's the first payment
     const lateFeeRaw = await getSetting(db, "late_fee_amount");
-    const gracePeriodDays = parseInt(await getSetting(db, "rent_due_end_day"), 10);
+    const rentDueStartDay = parseInt(await getSetting(db, "rent_due_start_day"), 10);
+    const rentDueEndDay = parseInt(await getSetting(db, "rent_due_end_day"), 10);
+    // Window length: e.g. 1st–5th = 5 days, 3rd–8th = 6 days
+    const windowLength = rentDueEndDay - rentDueStartDay + 1;
     const [rentYear, rentMonthNum] = rentMonth.split("-").map(Number);
     let rentDueDate: Date;
 
     if (!previousPayments) {
-        // First payment: grace period is exactly `gracePeriodDays` after the moveInDate
+        // First payment: grace period = windowLength days from move-in date.
+        // e.g. move-in on 14th, window is 1st–5th (5 days) → due by 19th
         const moveInDateObj = new Date(booking.moveInDate);
         const moveInDay = moveInDateObj.getUTCDate();
-        rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, moveInDay + gracePeriodDays));
+        rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, moveInDay + windowLength));
     } else {
-        // Subsequent payments: strictly due by the `gracePeriodDays` of the month (e.g. 5th of the month)
-        rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, gracePeriodDays));
+        // Subsequent payments: strictly due by the end day of the configured window
+        // e.g. if window is 1st–5th, rent is due by the 5th of the month
+        rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, rentDueEndDay));
     }
 
     const dateNow = new Date();
@@ -107,15 +112,13 @@ export async function initiateRentPayment(
     let rentToPay = booking.monthlyRent;
     if (!previousPayments) {
         // First payment: calculate prorated rent based on moveInDate
-        const moveInDate = new Date(booking.moveInDate);
-        const rentMonthDate = new Date(`${rentMonth}-01`);
+        // Parse as UTC components to avoid timezone-related off-by-one errors
+        const [miYear, miMonth, miDay] = booking.moveInDate.split("-").map(Number) as [number, number, number];
 
         // Ensure the payment is for the moveInDate's month
-        if (moveInDate.getFullYear() === rentMonthDate.getFullYear() &&
-            moveInDate.getMonth() === rentMonthDate.getMonth()) {
-
-            const daysInMonth = new Date(moveInDate.getFullYear(), moveInDate.getMonth() + 1, 0).getDate();
-            const daysRemaining = daysInMonth - moveInDate.getDate() + 1; // inclusive of move-in day
+        if (miYear === rentYear && miMonth === rentMonthNum) {
+            const daysInMonth = new Date(Date.UTC(miYear, miMonth, 0)).getDate();
+            const daysRemaining = daysInMonth - miDay + 1; // inclusive of move-in day
             rentToPay = Math.round((booking.monthlyRent / daysInMonth) * daysRemaining);
         }
     }

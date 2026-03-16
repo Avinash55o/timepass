@@ -495,6 +495,24 @@ adminRoute.post(
 
             // Mark bed as occupied
             await db.update(beds).set({ status: "occupied" }).where(eq(beds.id, body.bedId));
+
+            // Create a deposit record marked as already paid (collected offline by admin).
+            // This ensures the tenant's dashboard shows the correct deposit amount
+            // instead of "N/A", and confirms the deposit has been received.
+            if (booking) {
+                const { getAllSettings } = await import("../services/settings.service");
+                const settings = await getAllSettings(db);
+                const depositAmount = parseInt(settings.deposit_amount, 10);
+
+                await db.insert(deposits).values({
+                    bookingId: booking.id,
+                    tenantId: newUser.id,
+                    amount: depositAmount,
+                    status: "held",
+                    paidAt: now,       // offline deposit already received
+                    createdAt: now,
+                });
+            }
         }
 
         return c.json(

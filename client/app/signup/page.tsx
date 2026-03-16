@@ -19,11 +19,40 @@ export default function SignupPage() {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
+
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const password = formData.password;
+    const phone = formData.phone.trim();
+
+    // Client-side validation
+    if (name.length < 2) {
+      toast.error("Name must be at least 2 characters");
+      return;
+    }
+
+    const phoneRegex = /^\+?[0-9]{10,13}$/;
+    if (!phoneRegex.test(phone)) {
+      toast.error("Phone number must be 10–13 digits and may start with +");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.post("/api/auth/signup", formData);
+      await api.post("/api/auth/signup", {
+        name,
+        email,
+        password,
+        phone,
+      });
+
       toast.success("Account created! Please login.");
       router.push("/login");
     } catch (err: unknown) {
@@ -69,7 +98,20 @@ export default function SignupPage() {
               </label>
               <label className="input input-bordered flex items-center gap-2 w-full">
                 <Phone className="h-4 w-4 opacity-50" />
-                <input type="tel" name="phone" placeholder="Phone Number" value={formData.phone} onChange={handleChange} required className="grow" />
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="Phone Number"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      phone: e.target.value.replace(/[^0-9+]/g, "")
+                    }))
+                  }
+                  required
+                  className="grow"
+                />
               </label>
               <label className="input input-bordered flex items-center gap-2 w-full">
                 <Lock className="h-4 w-4 opacity-50" />

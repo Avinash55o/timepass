@@ -310,15 +310,14 @@ bookingsRoute.get("/my", requireAuth(), async (c) => {
             .get();
 
         if (!previousPayments) {
-            const moveInDate = new Date(booking.moveInDate);
-            const rentMonthDate = new Date(`${rentMonth}-01`);
+            // Parse as UTC components to avoid timezone-related off-by-one errors
+            const [miYear, miMonth, miDay] = booking.moveInDate.split("-").map(Number) as [number, number, number];
+            const [rmYear, rmMonth] = rentMonth.split("-").map(Number) as [number, number];
 
             // Ensure the payment is for the moveInDate's month
-            if (moveInDate.getFullYear() === rentMonthDate.getFullYear() &&
-                moveInDate.getMonth() === rentMonthDate.getMonth()) {
-
-                const daysInMonth = new Date(moveInDate.getFullYear(), moveInDate.getMonth() + 1, 0).getDate();
-                const daysRemaining = daysInMonth - moveInDate.getDate() + 1;
+            if (miYear === rmYear && miMonth === rmMonth) {
+                const daysInMonth = new Date(Date.UTC(miYear, miMonth, 0)).getDate();
+                const daysRemaining = daysInMonth - miDay + 1;
                 amountDue = Math.round((booking.monthlyRent / daysInMonth) * daysRemaining);
             }
         }

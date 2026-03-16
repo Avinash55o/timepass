@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Modal } from "@/components/Modal";
 import toast from "react-hot-toast";
@@ -40,18 +41,37 @@ export default function ComplaintsPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
+
+    const trimmedSubject = subject.trim();
+    const trimmedMessage = message.trim();
+
+    // Client-side validation
+    if (trimmedSubject.length < 3) {
+      toast.error("Subject must be at least 3 characters");
+      return;
+    }
+
+    if (trimmedMessage.length < 10) {
+      toast.error("Message must be at least 10 characters");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await api.post("/api/complaints", { subject, message });
+      await api.post("/api/complaints", {
+        subject: trimmedSubject,
+        message: trimmedMessage,
+      });
+
       toast.success("Complaint submitted");
       setSubject("");
       setMessage("");
       setModalOpen(false);
       fetchComplaints();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to submit complaint");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to submit complaint"));
     } finally {
       setSubmitting(false);
     }
@@ -107,10 +127,10 @@ export default function ComplaintsPage() {
                   </div>
                   <span
                     className={`badge badge-sm ${c.status === "resolved"
-                        ? "badge-success"
-                        : c.status === "in_progress"
-                          ? "badge-info"
-                          : "badge-warning"
+                      ? "badge-success"
+                      : c.status === "in_progress"
+                        ? "badge-info"
+                        : "badge-warning"
                       }`}
                   >
                     {c.status.replace("_", " ")}
@@ -160,7 +180,7 @@ export default function ComplaintsPage() {
             </label>
             <textarea
               className="textarea textarea-bordered w-full"
-              placeholder="Describe the issue..."
+              placeholder="Describe the issue. Be specific and write it detailed."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               required
@@ -170,7 +190,7 @@ export default function ComplaintsPage() {
           <button
             type="submit"
             className={`btn btn-primary w-full ${submitting ? "btn-disabled" : ""}`}
-            disabled={submitting}
+            disabled={submitting || subject.trim().length < 3 || message.trim().length < 10}
           >
             {submitting && <span className="loading loading-spinner loading-sm"></span>}
             Submit Complaint

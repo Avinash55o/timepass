@@ -157,7 +157,7 @@ export const googleCallbackSchema = z.object({
 
 export const adminCreateTenantSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Invalid email address"),
+    email: z.email("Invalid email address"),
     phone: z.string().regex(/^\+?[0-9]{10,13}$/, "Invalid phone number"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     bedId: z.number().int().positive().optional(),  // optionally assign a bed immediately

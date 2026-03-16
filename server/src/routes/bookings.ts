@@ -400,28 +400,26 @@ bookingsRoute.post(
             .where(eq(deposits.bookingId, bookingId))
             .get();
 
-        if (!deposit) {
-            return c.json(err("Deposit record not found for this booking"), 404);
-        }
+        if (deposit) {
+            // Validate that refund + deduction equals original deposit amount
+            const totalRefundAndDeduction = body.refundAmount + body.deductionAmount;
+            if (totalRefundAndDeduction !== deposit.amount) {
+                return c.json(
+                    err(
+                        `Invalid amounts: Refund (${body.refundAmount}) + Deduction (${body.deductionAmount}) = ${totalRefundAndDeduction} ` +
+                        `does not equal original deposit amount (${deposit.amount})`
+                    ),
+                    400
+                );
+            }
 
-        // Validate that refund + deduction equals original deposit amount
-        const totalRefundAndDeduction = body.refundAmount + body.deductionAmount;
-        if (totalRefundAndDeduction !== deposit.amount) {
-            return c.json(
-                err(
-                    `Invalid amounts: Refund (${body.refundAmount}) + Deduction (${body.deductionAmount}) = ${totalRefundAndDeduction} ` +
-                    `does not equal original deposit amount (${deposit.amount})`
-                ),
-                400
-            );
-        }
-
-        // Validate deduction reason is provided when deducting
-        if (body.deductionAmount > 0 && !body.deductionReason?.trim()) {
-            return c.json(
-                err("Deduction reason is required when deducting from deposit"),
-                400
-            );
+            // Validate deduction reason is provided when deducting
+            if (body.deductionAmount > 0 && !body.deductionReason?.trim()) {
+                return c.json(
+                    err("Deduction reason is required when deducting from deposit"),
+                    400
+                );
+            }
         }
 
         const now = nowISO();
@@ -439,16 +437,18 @@ bookingsRoute.post(
             .where(eq(beds.id, booking.bedId));
 
         // Update deposit refund info
-        await db
-            .update(deposits)
-            .set({
-                status: body.deductionAmount > 0 ? "partially_refunded" : "refunded",
-                refundAmount: body.refundAmount,
-                deductionAmount: body.deductionAmount,
-                deductionReason: body.deductionReason,
-                refundedAt: now,
-            })
-            .where(eq(deposits.bookingId, bookingId));
+        if (deposit) {
+            await db
+                .update(deposits)
+                .set({
+                    status: body.deductionAmount > 0 ? "partially_refunded" : "refunded",
+                    refundAmount: body.refundAmount,
+                    deductionAmount: body.deductionAmount,
+                    deductionReason: body.deductionReason,
+                    refundedAt: now,
+                })
+                .where(eq(deposits.bookingId, bookingId));
+        }
 
         return c.json(ok({ message: "Booking ended. Bed is now available." }));
     }

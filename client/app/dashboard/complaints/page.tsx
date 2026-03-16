@@ -50,8 +50,8 @@ export default function ComplaintsPage() {
       setMessage("");
       setModalOpen(false);
       fetchComplaints();
-    } catch {
-      toast.error("Failed to submit complaint");
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to submit complaint");
     } finally {
       setSubmitting(false);
     }

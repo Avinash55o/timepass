@@ -69,25 +69,6 @@ export async function initiateRentPayment(
 
     if (existing) throw new Error(`Rent for ${rentMonth} already paid`);
 
-    // Calculate late fee based on move-in date and grace period
-    const lateFeeRaw = await getSetting(db, "late_fee_amount");
-    const gracePeriodDays = parseInt(await getSetting(db, "rent_due_end_day"), 10);
-
-    // Determine the exact due date for this rent month
-    const moveInDateObj = new Date(booking.moveInDate);
-    const moveInDay = moveInDateObj.getUTCDate();
-    const [rentYear, rentMonthNum] = rentMonth.split("-").map(Number);
-
-    // The rent due date is `gracePeriodDays` after the `moveInDay` of the `rentMonth`
-    const rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, moveInDay + gracePeriodDays));
-
-    const dateNow = new Date();
-    const todayUTC = new Date(Date.UTC(dateNow.getUTCFullYear(), dateNow.getUTCMonth(), dateNow.getUTCDate()));
-
-    // Late fee applies if today is strictly past the calculated due date
-    const isLate = todayUTC > rentDueDate;
-    const lateFee = isLate ? parseFloat(lateFeeRaw) : 0;
-
     // Check if this is the first rent payment for this booking
     const previousPayments = await db
         .select({ id: payments.id })
@@ -99,6 +80,29 @@ export async function initiateRentPayment(
             )
         )
         .get();
+
+    // Calculate late fee based on grace period and whether it's the first payment
+    const lateFeeRaw = await getSetting(db, "late_fee_amount");
+    const gracePeriodDays = parseInt(await getSetting(db, "rent_due_end_day"), 10);
+    const [rentYear, rentMonthNum] = rentMonth.split("-").map(Number);
+    let rentDueDate: Date;
+
+    if (!previousPayments) {
+        // First payment: grace period is exactly `gracePeriodDays` after the moveInDate
+        const moveInDateObj = new Date(booking.moveInDate);
+        const moveInDay = moveInDateObj.getUTCDate();
+        rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, moveInDay + gracePeriodDays));
+    } else {
+        // Subsequent payments: strictly due by the `gracePeriodDays` of the month (e.g. 5th of the month)
+        rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, gracePeriodDays));
+    }
+
+    const dateNow = new Date();
+    const todayUTC = new Date(Date.UTC(dateNow.getUTCFullYear(), dateNow.getUTCMonth(), dateNow.getUTCDate()));
+
+    // Late fee applies if today is strictly past the calculated due date
+    const isLate = todayUTC > rentDueDate;
+    const lateFee = isLate ? parseFloat(lateFeeRaw) : 0;
 
     let rentToPay = booking.monthlyRent;
     if (!previousPayments) {

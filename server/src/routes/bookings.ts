@@ -273,7 +273,13 @@ bookingsRoute.get("/my", requireAuth(), async (c) => {
     const bed = await db.select().from(beds).where(eq(beds.id, booking.bedId)).get();
     const room = bed ? await db.select().from(rooms).where(eq(rooms.id, bed.roomId)).get() : null;
     const deposit = await db
-        .select()
+        .select({
+            id: deposits.id,
+            amount: deposits.amount,
+            status: deposits.status,
+            paidAt: deposits.paidAt,
+            razorpayOrderId: deposits.razorpayOrderId,
+        })
         .from(deposits)
         .where(eq(deposits.bookingId, booking.id))
         .get();
@@ -318,7 +324,7 @@ bookingsRoute.get("/my", requireAuth(), async (c) => {
         }
     }
 
-    return c.json(ok({ booking, bed, room, deposit, amountDue, isRentPaid: !!currentMonthPayment }));
+    return c.json(ok({ booking, bed, room, deposit, amountDue, isRentPaid: !!currentMonthPayment, razorpayKeyId: c.env.RAZORPAY_KEY_ID }));
 });
 
 // ─── PUT /api/bookings/my/move-in-date — TENANT ──────────────

@@ -41,6 +41,7 @@ interface BookingData {
     amount: number;
     status: string;
     paidAt: string | null;
+    razorpayOrderId: string | null;
   } | null;
   room: {
     id: number;
@@ -48,6 +49,7 @@ interface BookingData {
   } | null;
   amountDue: number;
   isRentPaid: boolean;
+  razorpayKeyId: string;
 }
 
 export default function DashboardPage() {
@@ -58,6 +60,7 @@ export default function DashboardPage() {
   const [moveInDateModalOpen, setMoveInDateModalOpen] = useState(false);
   const [newMoveInDate, setNewMoveInDate] = useState("");
   const [updatingDate, setUpdatingDate] = useState(false);
+  const [retryingDeposit, setRetryingDeposit] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -132,6 +135,34 @@ export default function DashboardPage() {
       }
     } finally {
       setPayingRent(false);
+    }
+  };
+
+  const handleRetryDeposit = async () => {
+    if (!bookingData?.deposit) return;
+    setRetryingDeposit(true);
+    try {
+      const result = await openRazorpayCheckout({
+        razorpayKeyId: bookingData.razorpayKeyId,
+        orderId: bookingData.deposit.razorpayOrderId || "",
+        amount: bookingData.deposit.amount * 100,
+        description: "Security Deposit",
+        prefill: {
+          name: user?.name,
+          email: user?.email,
+        },
+      });
+
+      await api.post("/api/bookings/deposit/verify", result);
+      toast.success("Deposit paid successfully!");
+      fetchBooking();
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, "Payment failed");
+      if (msg !== "Payment cancelled by user") {
+        toast.error(msg);
+      }
+    } finally {
+      setRetryingDeposit(false);
     }
   };
 
@@ -262,6 +293,33 @@ export default function DashboardPage() {
                 <span className="loading loading-spinner loading-sm"></span>
               ) : (
                 <>Pay ₹{bookingData!.amountDue.toLocaleString()}</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Retry Deposit Button */}
+      {booking.status === "pending_deposit" && deposit && !deposit.paidAt && (
+        <div className="card bg-warning/10 border border-warning/30 mb-6">
+          <div className="card-body flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-lg flex items-center gap-2 text-warning-content">
+                <Shield className="h-5 w-5" /> Pending Deposit
+              </h3>
+              <p className="text-sm text-base-content/80">
+                Your bed is reserved, but your deposit payment is pending. Please complete the payment to activate your booking.
+              </p>
+            </div>
+            <button
+              onClick={handleRetryDeposit}
+              className={`btn btn-warning w-full sm:w-auto ${retryingDeposit ? "btn-disabled" : ""}`}
+              disabled={retryingDeposit}
+            >
+              {retryingDeposit ? (
+                <span className="loading loading-spinner loading-sm"></span>
+              ) : (
+                <>Pay Deposit ₹{deposit.amount.toLocaleString()}</>
               )}
             </button>
           </div>

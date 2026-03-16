@@ -25709,7 +25709,13 @@ bookingsRoute.get("/my", requireAuth(), async (c) => {
   if (!booking) return c.json(err("No active booking found"), 404);
   const bed = await db.select().from(beds).where(eq(beds.id, booking.bedId)).get();
   const room = bed ? await db.select().from(rooms).where(eq(rooms.id, bed.roomId)).get() : null;
-  const deposit = await db.select().from(deposits).where(eq(deposits.bookingId, booking.id)).get();
+  const deposit = await db.select({
+    id: deposits.id,
+    amount: deposits.amount,
+    status: deposits.status,
+    paidAt: deposits.paidAt,
+    razorpayOrderId: deposits.razorpayOrderId
+  }).from(deposits).where(eq(deposits.bookingId, booking.id)).get();
   const rentMonth = `${(/* @__PURE__ */ new Date()).getUTCFullYear()}-${String((/* @__PURE__ */ new Date()).getUTCMonth() + 1).padStart(2, "0")}`;
   const currentMonthPayment = await db.select().from(payments).where(and(
     eq(payments.bookingId, booking.id),
@@ -25734,7 +25740,7 @@ bookingsRoute.get("/my", requireAuth(), async (c) => {
       }
     }
   }
-  return c.json(ok({ booking, bed, room, deposit, amountDue, isRentPaid: !!currentMonthPayment }));
+  return c.json(ok({ booking, bed, room, deposit, amountDue, isRentPaid: !!currentMonthPayment, razorpayKeyId: c.env.RAZORPAY_KEY_ID }));
 });
 bookingsRoute.put(
   "/my/move-in-date",
@@ -25851,22 +25857,27 @@ async function initiateRentPayment(db, tenantId, rentMonth, razorpayKeyId, razor
     )
   ).get();
   if (existing) throw new Error(`Rent for ${rentMonth} already paid`);
-  const lateFeeRaw = await getSetting(db, "late_fee_amount");
-  const gracePeriodDays = parseInt(await getSetting(db, "rent_due_end_day"), 10);
-  const moveInDateObj = new Date(booking.moveInDate);
-  const moveInDay = moveInDateObj.getUTCDate();
-  const [rentYear, rentMonthNum] = rentMonth.split("-").map(Number);
-  const rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, moveInDay + gracePeriodDays));
-  const dateNow = /* @__PURE__ */ new Date();
-  const todayUTC = new Date(Date.UTC(dateNow.getUTCFullYear(), dateNow.getUTCMonth(), dateNow.getUTCDate()));
-  const isLate = todayUTC > rentDueDate;
-  const lateFee = isLate ? parseFloat(lateFeeRaw) : 0;
   const previousPayments = await db.select({ id: payments.id }).from(payments).where(
     and(
       eq(payments.bookingId, booking.id),
       eq(payments.status, "completed")
     )
   ).get();
+  const lateFeeRaw = await getSetting(db, "late_fee_amount");
+  const gracePeriodDays = parseInt(await getSetting(db, "rent_due_end_day"), 10);
+  const [rentYear, rentMonthNum] = rentMonth.split("-").map(Number);
+  let rentDueDate;
+  if (!previousPayments) {
+    const moveInDateObj = new Date(booking.moveInDate);
+    const moveInDay = moveInDateObj.getUTCDate();
+    rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, moveInDay + gracePeriodDays));
+  } else {
+    rentDueDate = new Date(Date.UTC(rentYear, rentMonthNum - 1, gracePeriodDays));
+  }
+  const dateNow = /* @__PURE__ */ new Date();
+  const todayUTC = new Date(Date.UTC(dateNow.getUTCFullYear(), dateNow.getUTCMonth(), dateNow.getUTCDate()));
+  const isLate = todayUTC > rentDueDate;
+  const lateFee = isLate ? parseFloat(lateFeeRaw) : 0;
   let rentToPay = booking.monthlyRent;
   if (!previousPayments) {
     const moveInDate = new Date(booking.moveInDate);

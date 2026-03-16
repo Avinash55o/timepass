@@ -44,6 +44,11 @@ export async function initiateRentPayment(
 
     if (!booking) throw new Error("No active booking found for this tenant");
 
+    const moveInMonth = booking.moveInDate.slice(0, 7);
+    if (rentMonth < moveInMonth) {
+        throw new Error(`Cannot pay rent for ${rentMonth}: tenant moved in on ${moveInMonth}`);
+    }
+
     // Get tenant details (for Razorpay notes)
     const tenant = await db
         .select()
@@ -107,7 +112,7 @@ export async function initiateRentPayment(
 
     // Late fee applies if today is strictly past the calculated due date
     const isLate = todayUTC > rentDueDate;
-    const lateFee = isLate ? parseFloat(lateFeeRaw) : 0;
+    const lateFee = isLate ? Math.round(parseFloat(lateFeeRaw)) : 0;
 
     let rentToPay = booking.monthlyRent;
     if (!previousPayments) {
@@ -261,6 +266,11 @@ export async function recordManualPayment(
         .get();
 
     if (!booking) throw new Error("No active booking found for this tenant");
+
+    const moveInMonth = booking.moveInDate.slice(0, 7);
+    if (rentMonth < moveInMonth) {
+        throw new Error(`Cannot pay rent for ${rentMonth}: tenant moved in on ${moveInMonth}`);
+    }
 
     // Check for duplicate manual payment for same month and booking
     const existingPayment = await db

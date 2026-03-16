@@ -46,6 +46,7 @@ interface BookingData {
     id: number;
     name: string;
   } | null;
+  amountDue: number;
   isRentPaid: boolean;
 }
 
@@ -260,7 +261,7 @@ export default function DashboardPage() {
               {payingRent ? (
                 <span className="loading loading-spinner loading-sm"></span>
               ) : (
-                <>Pay ₹{booking.monthlyRent.toLocaleString()}</>
+                <>Pay ₹{bookingData!.amountDue.toLocaleString()}</>
               )}
             </button>
           </div>

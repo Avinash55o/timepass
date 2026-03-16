@@ -53,13 +53,14 @@ export async function initiateRentPayment(
 
     if (!tenant) throw new Error("Tenant not found");
 
-    // Check for duplicate payment for same month
+    // Check for duplicate payment for same month and booking
     const existing = await db
         .select()
         .from(payments)
         .where(
             and(
                 eq(payments.tenantId, tenantId),
+                eq(payments.bookingId, booking.id),
                 eq(payments.rentMonth, rentMonth),
                 eq(payments.status, "completed")
             )
@@ -254,13 +255,14 @@ export async function recordManualPayment(
 
     if (!booking) throw new Error("No active booking found for this tenant");
 
-    // Check for duplicate manual payment for same month
+    // Check for duplicate manual payment for same month and booking
     const existingPayment = await db
         .select({ id: payments.id })
         .from(payments)
         .where(
             and(
                 eq(payments.tenantId, tenantId),
+                eq(payments.bookingId, booking.id),
                 eq(payments.rentMonth, rentMonth),
                 eq(payments.status, "completed")
             )

@@ -46,6 +46,8 @@ interface TenantDetail {
     amount: number;
     status: string;
     paidAt: string | null;
+    refundAmount: number | null;
+    deductionAmount: number | null;
   } | null;
   payments: Array<{
     id: number;
@@ -210,12 +212,14 @@ export default function TenantDetailPage() {
                 <Bed className="h-5 w-5" /> Booking
               </h2>
               <div className="flex gap-2">
-                <button
-                  className="btn btn-outline btn-sm"
-                  onClick={() => setRentModalOpen(true)}
-                >
-                  <IndianRupee className="h-3 w-3" /> Update Rent
-                </button>
+                {booking.status !== "ended" && (
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setRentModalOpen(true)}
+                  >
+                    <IndianRupee className="h-3 w-3" /> Update Rent
+                  </button>
+                )}
                 {booking.status === "active" && (
                   <button
                     className="btn btn-error btn-sm btn-outline"
@@ -272,7 +276,16 @@ export default function TenantDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-base-content/60">Amount</p>
-                <p className="font-medium">₹{deposit.amount.toLocaleString()}</p>
+                <p className="font-medium flex flex-col gap-1">
+                  <span>₹{deposit.amount.toLocaleString()}</span>
+                  {(deposit.status === "refunded" || deposit.status === "partially_refunded") && (
+                    <span className="text-xs text-base-content/60">
+                      - ₹{(deposit.deductionAmount || 0).toLocaleString()} (Deduction)
+                      <br/>
+                      <strong className="text-success">= ₹{(deposit.refundAmount || 0).toLocaleString()} (Refunded)</strong>
+                    </span>
+                  )}
+                </p>
               </div>
               <div>
                 <p className="text-base-content/60">Status</p>
@@ -406,21 +419,28 @@ export default function TenantDetailPage() {
             />
           </div>
           <div className="form-control">
-            <label className="label"><span className="label-text">Refund Amount (₹)</span></label>
-            <input
-              type="text" inputMode="numeric" pattern="[0-9]*"
-              className="input input-bordered w-full"
-              value={endForm.refundAmount}
-              onChange={(e) => setEndForm((f) => ({ ...f, refundAmount: Number(e.target.value) || 0 }))}
-            />
-          </div>
-          <div className="form-control">
             <label className="label"><span className="label-text">Deduction Amount (₹)</span></label>
             <input
               type="text" inputMode="numeric" pattern="[0-9]*"
               className="input input-bordered w-full"
               value={endForm.deductionAmount}
-              onChange={(e) => setEndForm((f) => ({ ...f, deductionAmount: Number(e.target.value) || 0 }))}
+              onChange={(e) => {
+                const deduction = Number(e.target.value) || 0;
+                setEndForm((f) => ({
+                  ...f,
+                  deductionAmount: deduction,
+                  refundAmount: Math.max(0, (deposit?.amount || 0) - deduction)
+                }));
+              }}
+            />
+          </div>
+          <div className="form-control">
+            <label className="label"><span className="label-text">Refund Amount (₹) - Auto Calculated</span></label>
+            <input
+              type="text"
+              readOnly
+              className="input input-bordered w-full bg-base-200"
+              value={endForm.refundAmount}
             />
           </div>
           <div className="form-control">

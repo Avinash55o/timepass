@@ -191,10 +191,11 @@ adminRoute.get("/tenants/:id", async (c) => {
         })
         .from(users)
         .where(and(eq(users.id, tenantId), eq(users.role, "tenant")))
-        .leftJoin(bookings, and(eq(bookings.tenantId, users.id), inArray(bookings.status, ["active", "deposit_paid"])))
+        .leftJoin(bookings, eq(bookings.tenantId, users.id))
         .leftJoin(beds, eq(beds.id, bookings.bedId))
         .leftJoin(rooms, eq(rooms.id, beds.roomId))
         .leftJoin(deposits, eq(deposits.bookingId, bookings.id))
+        .orderBy(desc(bookings.createdAt))
         .get();
 
     if (!tenantWithBooking) return c.json(err("Tenant not found"), 404);

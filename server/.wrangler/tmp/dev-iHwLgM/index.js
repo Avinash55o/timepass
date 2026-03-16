@@ -25716,7 +25716,25 @@ bookingsRoute.get("/my", requireAuth(), async (c) => {
     eq(payments.rentMonth, rentMonth),
     eq(payments.status, "completed")
   )).get();
-  return c.json(ok({ booking, bed, room, deposit, isRentPaid: !!currentMonthPayment }));
+  let amountDue = booking.monthlyRent;
+  if (!currentMonthPayment) {
+    const previousPayments = await db.select({ id: payments.id }).from(payments).where(
+      and(
+        eq(payments.bookingId, booking.id),
+        eq(payments.status, "completed")
+      )
+    ).get();
+    if (!previousPayments) {
+      const moveInDate = new Date(booking.moveInDate);
+      const rentMonthDate = /* @__PURE__ */ new Date(`${rentMonth}-01`);
+      if (moveInDate.getFullYear() === rentMonthDate.getFullYear() && moveInDate.getMonth() === rentMonthDate.getMonth()) {
+        const daysInMonth = new Date(moveInDate.getFullYear(), moveInDate.getMonth() + 1, 0).getDate();
+        const daysRemaining = daysInMonth - moveInDate.getDate() + 1;
+        amountDue = Math.round(booking.monthlyRent / daysInMonth * daysRemaining);
+      }
+    }
+  }
+  return c.json(ok({ booking, bed, room, deposit, amountDue, isRentPaid: !!currentMonthPayment }));
 });
 bookingsRoute.put(
   "/my/move-in-date",
@@ -25827,6 +25845,7 @@ async function initiateRentPayment(db, tenantId, rentMonth, razorpayKeyId, razor
   const existing = await db.select().from(payments).where(
     and(
       eq(payments.tenantId, tenantId),
+      eq(payments.bookingId, booking.id),
       eq(payments.rentMonth, rentMonth),
       eq(payments.status, "completed")
     )
@@ -25935,6 +25954,7 @@ async function recordManualPayment(db, tenantId, amount, rentMonth, adminId, not
   const existingPayment = await db.select({ id: payments.id }).from(payments).where(
     and(
       eq(payments.tenantId, tenantId),
+      eq(payments.bookingId, booking.id),
       eq(payments.rentMonth, rentMonth),
       eq(payments.status, "completed")
     )
@@ -26441,7 +26461,7 @@ adminRoute.get("/tenants/:id", async (c) => {
     depositRefundAmount: deposits.refundAmount,
     depositDeductionAmount: deposits.deductionAmount,
     depositDeductionReason: deposits.deductionReason
-  }).from(users).where(and(eq(users.id, tenantId), eq(users.role, "tenant"))).leftJoin(bookings, and(eq(bookings.tenantId, users.id), inArray(bookings.status, ["active", "deposit_paid"]))).leftJoin(beds, eq(beds.id, bookings.bedId)).leftJoin(rooms, eq(rooms.id, beds.roomId)).leftJoin(deposits, eq(deposits.bookingId, bookings.id)).get();
+  }).from(users).where(and(eq(users.id, tenantId), eq(users.role, "tenant"))).leftJoin(bookings, eq(bookings.tenantId, users.id)).leftJoin(beds, eq(beds.id, bookings.bedId)).leftJoin(rooms, eq(rooms.id, beds.roomId)).leftJoin(deposits, eq(deposits.bookingId, bookings.id)).orderBy(desc(bookings.createdAt)).get();
   if (!tenantWithBooking) return c.json(err("Tenant not found"), 404);
   const [paymentHistory, tenantComplaints] = await Promise.all([
     getTenantPayments(db, tenantId, 50),

@@ -289,7 +289,36 @@ bookingsRoute.get("/my", requireAuth(), async (c) => {
         ))
         .get();
 
-    return c.json(ok({ booking, bed, room, deposit, isRentPaid: !!currentMonthPayment }));
+    let amountDue = booking.monthlyRent;
+    if (!currentMonthPayment) {
+        // Calculate prorated rent if this is the first payment
+        const previousPayments = await db
+            .select({ id: payments.id })
+            .from(payments)
+            .where(
+                and(
+                    eq(payments.bookingId, booking.id),
+                    eq(payments.status, "completed")
+                )
+            )
+            .get();
+
+        if (!previousPayments) {
+            const moveInDate = new Date(booking.moveInDate);
+            const rentMonthDate = new Date(`${rentMonth}-01`);
+
+            // Ensure the payment is for the moveInDate's month
+            if (moveInDate.getFullYear() === rentMonthDate.getFullYear() &&
+                moveInDate.getMonth() === rentMonthDate.getMonth()) {
+
+                const daysInMonth = new Date(moveInDate.getFullYear(), moveInDate.getMonth() + 1, 0).getDate();
+                const daysRemaining = daysInMonth - moveInDate.getDate() + 1;
+                amountDue = Math.round((booking.monthlyRent / daysInMonth) * daysRemaining);
+            }
+        }
+    }
+
+    return c.json(ok({ booking, bed, room, deposit, amountDue, isRentPaid: !!currentMonthPayment }));
 });
 
 // ─── PUT /api/bookings/my/move-in-date — TENANT ──────────────

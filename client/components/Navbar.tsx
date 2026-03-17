@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { LogOut, Menu, Home, LayoutDashboard, Shield } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export function Navbar({ hideMobileMenu = false, drawerId }: { hideMobileMenu?: boolean, drawerId?: string }) {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleLogout = () => {
     logout();
@@ -23,7 +24,7 @@ export function Navbar({ hideMobileMenu = false, drawerId }: { hideMobileMenu?: 
             <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
               <Menu className="h-5 w-5" />
             </div>
-            <ul tabIndex={0} className="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+            <ul tabIndex={0} className="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-32 p-2 shadow">
               <li><Link href="/"><Home className="h-4 w-4" /> Rooms</Link></li>
               {isAuthenticated && !isAdmin && (
                 <li><Link href="/dashboard"><LayoutDashboard className="h-4 w-4" /> Dashboard</Link></li>
@@ -34,20 +35,49 @@ export function Navbar({ hideMobileMenu = false, drawerId }: { hideMobileMenu?: 
             </ul>
           </div>
         )}
-        <Link href="/" className="btn btn-ghost text-xl font-bold">
-          RentEase
+        <Link
+          href="/"
+          className={`btn btn-ghost text-xl font-bold ${pathname === "/" ? "hidden sm:flex" : ""
+            }`}
+        >
+          PayYourRent
         </Link>
       </div>
 
       {/* Desktop menu */}
       <div className="navbar-center hidden lg:flex">
         <ul className="menu menu-horizontal px-1 gap-1">
-          <li><Link href="/">Rooms</Link></li>
+          <li>
+            <Link
+              href="/"
+              className={`hover:bg-base-200 ${pathname === "/" ? "bg-base-200" : ""}`}
+            >
+              Rooms
+            </Link>
+          </li>
+
           {isAuthenticated && !isAdmin && (
-            <li><Link href="/dashboard">Dashboard</Link></li>
+            <li>
+              <Link
+                href="/dashboard"
+                className={`hover:bg-base-200 ${pathname.startsWith("/dashboard") ? "bg-base-200" : ""
+                  }`}
+              >
+                Dashboard
+              </Link>
+            </li>
           )}
+
           {isAdmin && (
-            <li><Link href="/admin">Admin Panel</Link></li>
+            <li>
+              <Link
+                href="/admin"
+                className={`hover:bg-base-200 ${pathname.startsWith("/admin") ? "bg-base-200" : ""
+                  }`}
+              >
+                Admin Panel
+              </Link>
+            </li>
           )}
         </ul>
       </div>

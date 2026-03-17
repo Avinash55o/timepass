@@ -45,9 +45,10 @@ export default function AdminLayout({
             <div className="drawer-side z-30">
               <label htmlFor="admin-drawer" className="drawer-overlay"></label>
               <aside className="bg-base-100 border-r border-base-200 w-64 min-h-full">
-                <div className="p-4 border-b border-base-200">
+                <div className="p-4 border-b border-base-200 lg:hidden">
                   <h2 className="font-bold text-lg">Admin Panel</h2>
                 </div>
+
                 <ul className="menu p-4 gap-1">
                   {sidebarLinks.map((link) => (
                     <li key={link.href}>
